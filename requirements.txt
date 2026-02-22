@@ -1,0 +1,14 @@
+PyQt6
+requests
+psutil
+python-dotenv
+pyautogui
+screen-brightness-control
+pycaw
+comtypes
+pywin32
+SpeechRecognition
+pyttsx3
+PyAudio
+pywhatkit
+fpdf2

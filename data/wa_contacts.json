@@ -1,0 +1,7 @@
+{
+    "_instructions": "Add your contacts here. Key = name (lowercase), Value = phone number with country code. Example: +91XXXXXXXXXX for India",
+    "arha": "+91XXXXXXXXXX",
+    "gulji": "+91XXXXXXXXXX",
+    "mom": "+91XXXXXXXXXX",
+    "dad": "+91XXXXXXXXXX"
+}

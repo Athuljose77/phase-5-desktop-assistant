@@ -1,0 +1,34 @@
+# Environment variables (API keys)
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+.pyre_configuration
+pyrightconfig.json
+
+# Debug/temp files
+debug_*.py
+fix_*.py
+demo.txt
+
+# Data (user-specific)
+data/memory.json
+data/chromadb/
+
+# Screenshots (generated)
+screenshots/
+
+# PyWhatKit cache
+PyWhatKit_DB.txt
