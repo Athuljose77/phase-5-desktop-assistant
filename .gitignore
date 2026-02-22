@@ -32,3 +32,14 @@ screenshots/
 
 # PyWhatKit cache
 PyWhatKit_DB.txt
+
+# Generated PDFs
+*.pdf
+
+# Temporary test scripts
+test_*.py
+verify_*.py
+test_rules.txt
+create_*_pdf.py
+create_pdf.py
+create_presentation.py
