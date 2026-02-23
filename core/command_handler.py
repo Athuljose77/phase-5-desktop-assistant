@@ -137,8 +137,10 @@ class CommandHandler:
             return ("open_url", url_match.group(1).strip())
 
         # --- "open <app>" or "start <app>" --------------------------------
+        # NOTE: terminator is [!?] (no dot) so filenames like 'exp 5.pdf'
+        # are captured whole rather than being cut at the period.
         open_match = re.search(
-            r"^(?:(?:please|can you|could you|would you|just)\s+)?(?:open|start|launch|run)\s+(.+?)(?:[!?.]|$)",
+            r"^(?:(?:please|can you|could you|would you|just)\s+)?(?:open|start|launch|run)\s+(.+?)(?:\s*[!?]|$)",
             lower,
             re.IGNORECASE,
         )
@@ -187,13 +189,93 @@ class CommandHandler:
             if not is_coding and (has_file_hint or (len(candidate.split()) <= 3 and "." in candidate)):
                 return ("search_file", candidate)
 
+        # -------------------------------------------------------------------
+        # Natural Language File Navigation (offline, deterministic)
+        # Intents: nav_list (show contents), nav_enter (cd into folder),
+        #          nav_back (go to parent directory)
+        # These are checked BEFORE the generic read/learn rules so phrases
+        # like "show files in Downloads" don't accidentally fall through.
+        # -------------------------------------------------------------------
+
+        # --- nav_back: "go back", "go up", "parent folder", etc. ----------
+        if re.search(
+            r"\b(go\s+back|go\s+up|parent\s+folder|back|up\s+one\s+level|previous\s+folder)\b",
+            lower,
+        ):
+            return ("nav_back", None)
+
+        # --- nav_list: "list files", "show folders", "what's here", etc. --
+        nav_list_match = re.search(
+            r"(?:list|show|display|what(?:'s|\s+is)\s+(?:in|here))\s+"
+            r"(?:(?:all\s+)?(?:files?|folders?|contents?|directory|dir)\s+)?"
+            r"(?:in\s+)?(?:(?:my|the|current|this)\s+)?"
+            r"(?:directory|folder|path|location)?",
+            lower,
+        )
+        # Also catch bare "list folders", "show files", "what's in my system", etc.
+        _NAV_LIST_TRIGGERS = (
+            "list files", "list folders", "show files", "show folders",
+            "show contents", "list contents", "display files", "display folders",
+            "what's here", "what is here", "what's in this folder",
+            "show directory", "list directory", "list dir",
+            "show current directory", "show current folder",
+            "list my folders", "list my files",
+            "show me files", "show me folders",
+            "files in", "folders in", "list folders in", "list files in",
+            "show files in", "show folders in",
+            "what files", "what folders",
+        )
+        if nav_list_match or any(t in lower for t in _NAV_LIST_TRIGGERS):
+            # Extract an optional explicit folder name ("list files in Downloads")
+            folder_arg_match = re.search(
+                r"(?:in|inside|of)\s+(?:my\s+)?([A-Za-z0-9_ .-]+?)(?:\s+folder)?(?:[!?.]|$)",
+                lower,
+            )
+            folder_arg = folder_arg_match.group(1).strip() if folder_arg_match else None
+            # Ignore common filler words that aren't real folder names
+            if folder_arg in (
+                "current", "this", "the", "my", "a", "system",
+                "directory", "folder", "path", "location", "here",
+            ):
+                folder_arg = None
+            return ("nav_list", folder_arg)
+
+        # --- nav_enter: "enter", "go to", "navigate to" + folder ----------
+        # IMPORTANT: 'open' is deliberately excluded here — "open X.pdf"
+        # must fall through to open_file, not be treated as folder nav.
+        # File-extension guard: if the target looks like a file (has a dot
+        # followed by 1-5 chars), skip nav_enter entirely.
+        nav_enter_match = re.search(
+            r"(?:enter|go\s+(?:to|into)|navigate\s+(?:to|into)|cd|change\s+(?:to|into))\s+"
+            r"(?:the\s+)?(?:(?:my\s+)?(?:downloads?|documents?|desktop|pictures?|videos?|music"
+            r"|[A-Za-z0-9_ -]+?))\s*(?:folder|directory|dir)?(?:\s*[!?]|$)",
+            lower,
+        )
+        if nav_enter_match:
+            # Grab the folder name portion from group
+            raw = nav_enter_match.group(0)
+            # Strip leading verb phrase and trailing noise (no dot terminator)
+            folder_name_match = re.search(
+                r"(?:enter|go\s+(?:to|into)|navigate\s+(?:to|into)|cd|change\s+(?:to|into))\s+"
+                r"(?:the\s+)?([A-Za-z0-9_ /-]+?)(?:\s+(?:folder|directory|dir))?(?:\s*[!?])?$",
+                raw.strip(),
+                re.IGNORECASE,
+            )
+            if folder_name_match:
+                folder_name = folder_name_match.group(1).strip()
+                # Guard: if it looks like a filename (has extension), skip nav_enter
+                if re.search(r'\.[a-zA-Z0-9]{1,5}$', folder_name):
+                    pass  # fall through to open_file / open handlers
+                elif folder_name not in ("the", "a", "my", ""):
+                    return ("nav_enter", folder_name)
+
         # --- Read / Learn File --------------------------------------------
         # "read file.txt" or "learn file.txt"
         match = re.search(r"\b(?:read|learn)\b\s+(.+)", lower)
         if match:
             # Check if this is a "read" vs "learn" intent based on the keyword used
             keyword_end_idx = match.start() + 5
-            intent = "learn" if "learn" in lower[:keyword_end_idx] else "read"
+            intent = "learn" if "learn" in lower[:keyword_end_idx] else "read"  # type: ignore[index]
             return (intent, match.group(1).strip())
 
         # --- Volume -------------------------------------------------------

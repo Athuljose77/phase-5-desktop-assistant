@@ -8,13 +8,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 # Try to initialize ChromaDB for RAG, but don't crash if it fails
 try:
-    import chromadb
+    import chromadb  # type: ignore[import-not-found, import]
     CHROMA_AVAILABLE = True
 except ImportError:
     CHROMA_AVAILABLE = False
@@ -59,8 +60,8 @@ class MemoryHandler:
         if CHROMA_AVAILABLE:
             try:
                 os.makedirs(CHROMA_DB_PATH, exist_ok=True)
-                self.chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
-                self.chroma_collection = self.chroma_client.get_or_create_collection(name="user_knowledge")
+                self.chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)  # type: ignore
+                self.chroma_collection = self.chroma_client.get_or_create_collection(name="user_knowledge")  # type: ignore
                 logger.info("ChromaDB initialized for local RAG.")
             except Exception as e:
                 logger.error(f"Failed to initialize ChromaDB: {e}")
@@ -211,11 +212,12 @@ class MemoryHandler:
                 metadatas.append({"source": source_name})
                 ids.append(f"{source_name}_chunk_{i}")
                 
-            self.chroma_collection.add(
-                documents=docs,
-                metadatas=metadatas,
-                ids=ids
-            )
+            if self.chroma_collection is not None:
+                self.chroma_collection.add(  # type: ignore[union-attr]
+                    documents=docs,
+                    metadatas=metadatas,
+                    ids=ids
+                )
             return f"✅ Successfully added **{source_name}** to your local knowledge base. You can ask me about it anytime."
             
         except Exception as e:
@@ -228,10 +230,13 @@ class MemoryHandler:
             return ""
 
         try:
-            results = self.chroma_collection.query(
-                query_texts=[query],
-                n_results=n_results
-            )
+            if self.chroma_collection is not None:
+                results = self.chroma_collection.query(  # type: ignore[union-attr]
+                    query_texts=[query],
+                    n_results=n_results
+                )
+            else:
+                results = None
             
             if not results or not results['documents'] or not results['documents'][0]:
                 return ""

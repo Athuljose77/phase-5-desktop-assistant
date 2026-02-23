@@ -26,6 +26,7 @@ from config import (  # type: ignore[import-not-found]
 )
 from core.command_handler import CommandHandler  # type: ignore[import-not-found]
 from core.file_reader import read_file  # type: ignore[import-not-found]
+from core.file_manager import list_directory, change_directory, format_nav_result  # type: ignore[import-not-found]  # NL File Nav
 from core.hybrid_handler import HybridAIHandler  # type: ignore[import-not-found]
 from core.memory_handler import MemoryHandler  # type: ignore[import-not-found]
 from core.system_control import SystemControl  # type: ignore[import-not-found]
@@ -125,6 +126,10 @@ class Phase5App:
         self.memory = MemoryHandler()
         self.cmd = CommandHandler()
         self.window = MainWindow()
+
+        # --- Natural Language File Navigator state (NL File Nav) -----------
+        import os as _os
+        self.current_path: str = _os.path.expanduser("~")  # start at home dir
 
         # Keep a reference to the active worker so it isn't GC'd
         self._worker: WorkerThread | None = None
@@ -407,6 +412,49 @@ class Phase5App:
             self.window.append_system(result)
             self.memory.add_to_history("user", text)
             self.memory.add_to_history("assistant", result)
+            return
+
+        # -------------------------------------------------------------------
+        # Natural Language File Navigation (NL File Nav)
+        # Routed here from command_handler; never sent to the LLM.
+        # -------------------------------------------------------------------
+
+        if cmd_type == "nav_list":
+            import os as _os
+            # Optional: arg holds an explicit folder name (e.g. "Downloads")
+            if arg:
+                # Resolve well-known common names to full paths first
+                _COMMON = {
+                    "downloads": _os.path.join(_os.path.expanduser("~"), "Downloads"),
+                    "documents": _os.path.join(_os.path.expanduser("~"), "Documents"),
+                    "desktop":   _os.path.join(_os.path.expanduser("~"), "Desktop"),
+                    "pictures":  _os.path.join(_os.path.expanduser("~"), "Pictures"),
+                    "videos":    _os.path.join(_os.path.expanduser("~"), "Videos"),
+                    "music":     _os.path.join(_os.path.expanduser("~"), "Music"),
+                }
+                candidate = _COMMON.get(str(arg).lower())
+                if candidate and _os.path.isdir(str(candidate)):
+                    target_path = str(candidate)
+                else:
+                    target_path = _os.path.join(self.current_path, str(arg))
+                result = list_directory(target_path)
+            else:
+                result = list_directory(self.current_path)
+            self.window.append_system(format_nav_result(result))
+            return
+
+        if cmd_type == "nav_enter" and arg:
+            result = change_directory(self.current_path, arg)
+            # Update persistent navigation state on successful entry
+            if not result["message"].startswith("⚠️"):
+                self.current_path = result["path"]
+            self.window.append_system(format_nav_result(result))
+            return
+
+        if cmd_type == "nav_back":
+            result = change_directory(self.current_path, "..")
+            self.current_path = result["path"]
+            self.window.append_system(format_nav_result(result))
             return
 
         # --- 3. Default: regular chat ------------------------------------

@@ -43,3 +43,4 @@ test_rules.txt
 create_*_pdf.py
 create_pdf.py
 create_presentation.py
+create_pitch_pdf.py
